@@ -27,6 +27,8 @@ import (
 	"github.com/vmware/govmomi/vim25/types"
 	corev1 "k8s.io/api/core/v1"
 	apitypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/pointer"
+	capierrors "sigs.k8s.io/cluster-api/errors"
 
 	infrav1 "sigs.k8s.io/cluster-api-provider-vsphere/api/v1alpha3"
 	"sigs.k8s.io/cluster-api-provider-vsphere/pkg/context"
@@ -69,8 +71,15 @@ func (vms *VMService) ReconcileVM(ctx *context.VMContext) (vm infrav1.VirtualMac
 		if !isNotFound(err) {
 			return vm, err
 		}
-		// If VM's MoRef could not be found then the VM does not exist,
-		// and the VM should be created.
+
+		// If the machine was not found by SMBIOS or K8s UUID, then fail the machine
+		if wasNotFoundByInstanceUUID(err) {
+			ctx.VSphereVM.Status.FailureReason = capierrors.MachineStatusErrorPtr(capierrors.UpdateMachineError)
+			ctx.VSphereVM.Status.FailureMessage = pointer.StringPtr("Unable to find VM by BIOS or Kubernetes UUID")
+			return vm, err
+		}
+
+		// Otherwise, this is a new machine and the  the VM should be created.
 
 		// Get the bootstrap data.
 		bootstrapData, err := vms.getBootstrapData(ctx)

@@ -89,7 +89,6 @@ type vmReconciler struct {
 
 // Reconcile ensures the back-end state reflects the Kubernetes resource state intent.
 func (r vmReconciler) Reconcile(req ctrl.Request) (_ ctrl.Result, reterr error) {
-
 	// Get the VSphereVM resource for this request.
 	vsphereVM := &infrav1.VSphereVM{}
 	if err := r.Client.Get(r, req.NamespacedName, vsphereVM); err != nil {
@@ -98,6 +97,11 @@ func (r vmReconciler) Reconcile(req ctrl.Request) (_ ctrl.Result, reterr error) 
 			return reconcile.Result{}, nil
 		}
 		return reconcile.Result{}, err
+	}
+
+	if vsphereVM.Status.FailureReason != nil || vsphereVM.Status.FailureMessage != nil {
+		r.Logger.Info("VM is failed, won't reconcile", "key", req.NamespacedName)
+		return reconcile.Result{}, nil
 	}
 
 	// Get or create an authenticated session to the vSphere endpoint.
